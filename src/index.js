@@ -160,6 +160,30 @@ const TOOLS = [
   { name: "set_clipboard", description: "Put text on the phone's clipboard.", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
   { name: "get_clipboard", description: "Read the phone's clipboard (best-effort; Android limits background reads).", inputSchema: { type: "object", properties: {} } },
 
+  // screenshots (auto-OCR memory of everything the owner screenshots)
+  { name: "list_screenshots", description: "List recent screenshots the owner took, newest first, with a text preview (auto-OCR'd on-device).", inputSchema: { type: "object", properties: { limit: { type: "integer", description: "default 20" } } } },
+  { name: "read_screenshot", description: "Get the full OCR'd text of a screenshot. Omit id for the most recent.", inputSchema: { type: "object", properties: { id: { type: "integer" } } } },
+  { name: "search_screenshots", description: "Search the owner's screenshots by their OCR'd text or filename.", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+
+  // media library + files + OCR
+  { name: "list_media", description: "List photos or videos from the phone's library, newest first; optional name/path filter.", inputSchema: { type: "object", properties: { type: { type: "string", enum: ["images", "videos"] }, query: { type: "string" }, limit: { type: "integer" } } } },
+  { name: "view_photo", description: "View a photo from the library by its id (returns the image).", inputSchema: { type: "object", properties: { id: { type: "integer" }, max_width: { type: "integer" } }, required: ["id"] } },
+  { name: "list_files", description: "List a folder in the phone's shared storage. Omit path for the storage root.", inputSchema: { type: "object", properties: { path: { type: "string" } } } },
+  { name: "ocr_image", description: "Run on-device OCR on an image file at a given path and return its text.", inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+
+  // settings + shell
+  { name: "get_setting", description: "Read an Android setting value.", inputSchema: { type: "object", properties: { namespace: { type: "string", enum: ["secure", "global", "system"] }, key: { type: "string" } }, required: ["key"] } },
+  { name: "set_setting", description: "Write an Android setting (Secure/Global need the WRITE_SECURE_SETTINGS ADB grant).", inputSchema: { type: "object", properties: { namespace: { type: "string", enum: ["secure", "global", "system"] }, key: { type: "string" }, value: { type: "string" } }, required: ["key", "value"] } },
+  { name: "toggle_setting", description: "Flip a system toggle: wifi, data, bluetooth, airplane, darkmode, nfc (via Shizuku).", inputSchema: { type: "object", properties: { name: { type: "string", enum: ["wifi", "data", "bluetooth", "airplane", "darkmode", "nfc"] }, on: { type: "boolean" } }, required: ["name", "on"] } },
+  { name: "shell", description: "Run a shell command on the phone as the shell user (UID 2000) via Shizuku. Powerful: pm, appops, am, settings, dumpsys, input, cmd, etc. No root, so other apps' private data stays sealed.", inputSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
+  { name: "shizuku_status", description: "Whether Shizuku is running and permission is granted.", inputSchema: { type: "object", properties: {} } },
+
+  // call screening
+  { name: "block_number", description: "Block a phone number (incoming calls silently rejected).", inputSchema: { type: "object", properties: { number: { type: "string" } }, required: ["number"] } },
+  { name: "unblock_number", description: "Remove a number from the block list.", inputSchema: { type: "object", properties: { number: { type: "string" } }, required: ["number"] } },
+  { name: "list_blocked", description: "List blocked numbers.", inputSchema: { type: "object", properties: {} } },
+  { name: "screened_calls", description: "Recent calls the screener saw (incoming/outgoing/blocked).", inputSchema: { type: "object", properties: {} } },
+
   // owner interaction
   { name: "speak", description: "Make the phone speak text out loud.", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
   { name: "show_popup", description: "Show a full-screen message on the phone (even over the lock screen).", inputSchema: { type: "object", properties: { message: { type: "string" } }, required: ["message"] } },
@@ -221,6 +245,26 @@ async function callTool(name, args, env) {
     tap_text: ["tap_text", { text: args.text }],
     global_action: ["global_action", { action: args.action }],
 
+    list_screenshots: ["shots_list", { limit: args.limit }],
+    read_screenshot: ["shots_read", { id: args.id }],
+    search_screenshots: ["shots_search", { query: args.query }],
+
+    list_media: ["media_list", { type: args.type || "images", query: args.query, limit: args.limit }],
+    view_photo: ["photo_view", { id: args.id, maxWidth: args.max_width }],
+    list_files: ["files_list", { path: args.path }],
+    ocr_image: ["ocr_image", { path: args.path }],
+
+    get_setting: ["setting_get", { namespace: args.namespace || "secure", key: args.key }],
+    set_setting: ["setting_put", { namespace: args.namespace || "secure", key: args.key, value: args.value }],
+    toggle_setting: ["toggle", { name: args.name, on: args.on }],
+    shell: ["shell", { command: args.command }],
+    shizuku_status: ["shizuku_status", {}],
+
+    block_number: ["block_number", { number: args.number }],
+    unblock_number: ["unblock_number", { number: args.number }],
+    list_blocked: ["list_blocked", {}],
+    screened_calls: ["screened_calls", {}],
+
     list_apps: ["list_apps", { onlyLaunchable: args.only_launchable !== false }],
     open_app: ["open_app", { package: args.package }],
     open_url: ["open_url", { url: args.url }],
@@ -234,8 +278,9 @@ async function callTool(name, args, env) {
   if (!entry) throw new Error("unknown tool: " + name);
   const [cmd, params] = entry;
   // screen control + location can take longer
-  const slow = ["screenshot", "location", "screen_dump", "swipe", "scroll"].includes(cmd);
-  return hubCmd(env, cmd, clean(params), slow ? 30000 : 20000);
+  const slow = ["screenshot", "location", "screen_dump", "swipe", "scroll",
+    "ocr_image", "photo_view", "shots_search", "shell", "media_list", "files_list"].includes(cmd);
+  return hubCmd(env, cmd, clean(params), slow ? 35000 : 20000);
 }
 
 function clean(o) {
