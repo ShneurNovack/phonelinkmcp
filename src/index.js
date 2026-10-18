@@ -115,13 +115,11 @@ const TOOLS = [
   { name: "media_control", description: "Control whatever is playing: play/pause, next, previous, stop.", inputSchema: { type: "object", properties: { action: { type: "string", enum: ["toggle", "play", "pause", "next", "prev", "stop"] } }, required: ["action"] } },
   { name: "now_playing", description: "What media is currently playing (app, title, artist).", inputSchema: { type: "object", properties: {} } },
 
-  // alarms (Phone Link's own, fully controllable)
-  { name: "list_alarms", description: "List all Phone Link alarms with their id, time, label, repeat days, and on/off state.", inputSchema: { type: "object", properties: {} } },
-  { name: "add_alarm", description: "Add an alarm. days can be omitted (one-time), or 'daily'/'weekdays'/'weekends', or a list like ['mon','tue'].", inputSchema: { type: "object", properties: { hour: { type: "integer" }, minute: { type: "integer" }, label: { type: "string" }, days: {}, vibrate: { type: "boolean" }, enabled: { type: "boolean" } }, required: ["hour", "minute"] } },
-  { name: "update_alarm", description: "Change an existing alarm by id (any of hour, minute, label, days, enabled, vibrate).", inputSchema: { type: "object", properties: { id: { type: "integer" }, hour: { type: "integer" }, minute: { type: "integer" }, label: { type: "string" }, days: {}, vibrate: { type: "boolean" }, enabled: { type: "boolean" } }, required: ["id"] } },
-  { name: "delete_alarm", description: "Delete an alarm by id.", inputSchema: { type: "object", properties: { id: { type: "integer" } }, required: ["id"] } },
-  { name: "toggle_alarm", description: "Enable or disable an alarm by id.", inputSchema: { type: "object", properties: { id: { type: "integer" }, enabled: { type: "boolean" } }, required: ["id", "enabled"] } },
-  { name: "set_timer", description: "Start a countdown timer in the phone's Clock app.", inputSchema: { type: "object", properties: { seconds: { type: "integer" }, label: { type: "string" } }, required: ["seconds"] } },
+  // alarms (native Google Clock). Android gives no way to list/edit/delete/toggle
+  // existing Clock alarms, so this creates them; use show_alarms to manage by hand.
+  { name: "add_alarm", description: "Create an alarm in the phone's native Clock app. days omitted = one-time, or 'daily'/'weekdays'/'weekends', or a list like ['mon','tue'] for a recurring alarm. Note: once created it can't be listed, edited, or deleted from here (Android limitation) - the owner manages it in Clock.", inputSchema: { type: "object", properties: { hour: { type: "integer" }, minute: { type: "integer" }, label: { type: "string" }, days: { description: "'daily' | 'weekdays' | 'weekends' | ['mon','tue',...]" }, vibrate: { type: "boolean" } }, required: ["hour", "minute"] } },
+  { name: "set_timer", description: "Start a countdown timer in the phone's native Clock app.", inputSchema: { type: "object", properties: { seconds: { type: "integer" }, label: { type: "string" } }, required: ["seconds"] } },
+  { name: "show_alarms", description: "Open the Clock app's alarm list on the phone so the owner can see and manage their alarms.", inputSchema: { type: "object", properties: {} } },
 
   // notifications
   { name: "list_notifications", description: "List current notifications with their key, app, title, text, and available actions (including which can be replied to).", inputSchema: { type: "object", properties: { include_ongoing: { type: "boolean", description: "Include persistent/ongoing notifications. Default false." } } } },
@@ -191,12 +189,9 @@ async function callTool(name, args, env) {
     media_control: ["media_control", { action: args.action }],
     now_playing: ["now_playing", {}],
 
-    list_alarms: ["alarm_list", {}],
-    add_alarm: ["alarm_add", { hour: args.hour, minute: args.minute, label: args.label, days: args.days, vibrate: args.vibrate, enabled: args.enabled }],
-    update_alarm: ["alarm_update", { id: args.id, hour: args.hour, minute: args.minute, label: args.label, days: args.days, vibrate: args.vibrate, enabled: args.enabled }],
-    delete_alarm: ["alarm_delete", { id: args.id }],
-    toggle_alarm: ["alarm_toggle", { id: args.id, enabled: args.enabled }],
+    add_alarm: ["set_alarm", { hour: args.hour, minute: args.minute, label: args.label, days: args.days, vibrate: args.vibrate }],
     set_timer: ["set_timer", { seconds: args.seconds, label: args.label }],
+    show_alarms: ["show_alarms", {}],
 
     list_notifications: ["notif_list", { includeOngoing: !!args.include_ongoing }],
     reply_notification: ["notif_reply", { key: args.key, text: args.text }],
