@@ -100,6 +100,12 @@ async function dispatch(msg, env) {
 // ---------- tool definitions ----------
 
 const TOOLS = [
+  // meta / discovery - always present, so new tools are reachable even when the
+  // connector's tool list is cached and hasn't refreshed.
+  { name: "list_tools", description: "List every tool this phone server currently supports (name + description + input schema). Use this to discover tools that may not be in your cached tool list, then call them with call_tool.", inputSchema: { type: "object", properties: { search: { type: "string", description: "optional filter on name/description" } } } },
+  { name: "call_tool", description: "Invoke any tool on this server by name, even one not in your cached tool list. Pass the tool name and its arguments.", inputSchema: { type: "object", properties: { name: { type: "string" }, arguments: { type: "object" } }, required: ["name"] } },
+  { name: "phone_command", description: "Send a raw command straight to the phone app's dispatcher (bypasses tool wrappers; reaches every current and future app command). cmd is the internal command name, params its arguments. Use list_tools / the app's command set for names. The owner's catch-all for full control.", inputSchema: { type: "object", properties: { cmd: { type: "string" }, params: { type: "object" } }, required: ["cmd"] } },
+
   // status / find
   { name: "phone_status", description: "Read the phone's current state: battery and charging, storage, network type, screen on/off, ringer mode, Do Not Disturb, and volume levels.", inputSchema: { type: "object", properties: {} } },
   { name: "ring_phone", description: "Ring the phone loudly to find it, even if it is on silent. Rings and vibrates.", inputSchema: { type: "object", properties: { seconds: { type: "integer", description: "1-120, default 15." } } } },
@@ -202,6 +208,24 @@ const TOOLS = [
 // ---------- tool execution ----------
 
 async function callTool(name, args, env) {
+  // --- meta tools ---
+  if (name === "list_tools") {
+    const q = (args.search || "").toLowerCase();
+    const tools = TOOLS
+      .filter(t => !q || t.name.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q))
+      .map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+    return { count: tools.length, tools };
+  }
+  if (name === "call_tool") {
+    const inner = args.name;
+    if (!inner || inner === "call_tool") throw new Error("call_tool needs a different tool name");
+    return callTool(inner, args.arguments || {}, env);
+  }
+  if (name === "phone_command") {
+    if (!args.cmd) throw new Error("phone_command needs a cmd");
+    return hubCmd(env, args.cmd, args.params || {}, 35000);
+  }
+
   if (name === "ask_on_phone") {
     const buttons = (args.buttons && args.buttons.length ? args.buttons : ["Yes", "No"])
       .map(l => ({ label: String(l), value: String(l) }));
