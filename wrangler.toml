@@ -9,4 +9,4 @@ class_name = "DeviceHub"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["DeviceHub"]
+new_sqlite_classes = ["DeviceHub"]
