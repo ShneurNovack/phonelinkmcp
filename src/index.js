@@ -178,6 +178,15 @@ const TOOLS = [
   { name: "shell", description: "Run a shell command on the phone as the shell user (UID 2000) via Shizuku. Powerful: pm, appops, am, settings, dumpsys, input, cmd, etc. No root, so other apps' private data stays sealed.", inputSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
   { name: "shizuku_status", description: "Whether Shizuku is running and permission is granted.", inputSchema: { type: "object", properties: {} } },
 
+  // network monitor (DNS-level, safe - other traffic untouched)
+  { name: "vpn_start", description: "Start the local network monitor (logs every domain the phone contacts). First time shows a VPN consent dialog.", inputSchema: { type: "object", properties: {} } },
+  { name: "vpn_stop", description: "Stop the network monitor.", inputSchema: { type: "object", properties: {} } },
+  { name: "vpn_status", description: "Whether the network monitor is running.", inputSchema: { type: "object", properties: {} } },
+  { name: "dns_log", description: "Recent domains the phone contacted (with counts), newest first.", inputSchema: { type: "object", properties: { limit: { type: "integer" } } } },
+  { name: "block_domain", description: "Block a domain (and its subdomains) at the DNS level.", inputSchema: { type: "object", properties: { domain: { type: "string" } }, required: ["domain"] } },
+  { name: "unblock_domain", description: "Unblock a domain.", inputSchema: { type: "object", properties: { domain: { type: "string" } }, required: ["domain"] } },
+  { name: "list_blocked_domains", description: "List blocked domains.", inputSchema: { type: "object", properties: {} } },
+
   // call screening
   { name: "block_number", description: "Block a phone number (incoming calls silently rejected).", inputSchema: { type: "object", properties: { number: { type: "string" } }, required: ["number"] } },
   { name: "unblock_number", description: "Remove a number from the block list.", inputSchema: { type: "object", properties: { number: { type: "string" } }, required: ["number"] } },
@@ -259,6 +268,14 @@ async function callTool(name, args, env) {
     toggle_setting: ["toggle", { name: args.name, on: args.on }],
     shell: ["shell", { command: args.command }],
     shizuku_status: ["shizuku_status", {}],
+
+    vpn_start: ["vpn_start", {}],
+    vpn_stop: ["vpn_stop", {}],
+    vpn_status: ["vpn_status", {}],
+    dns_log: ["dns_log", { limit: args.limit }],
+    block_domain: ["block_domain", { domain: args.domain }],
+    unblock_domain: ["unblock_domain", { domain: args.domain }],
+    list_blocked_domains: ["list_blocked_domains", {}],
 
     block_number: ["block_number", { number: args.number }],
     unblock_number: ["unblock_number", { number: args.number }],
